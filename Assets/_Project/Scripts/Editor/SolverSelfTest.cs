@@ -6,7 +6,110 @@ namespace ColorSortPuzzle.Editor
 {
     public class SolverSelfTest : EditorWindow
     {
+        private string _replayMoves = "";
+
+        private void OnGUI()
+        {
+            if (GUILayout.Button("Run Tests A-E"))
+            {
+                RunTests();
+            }
+
+            GUILayout.Space(20);
+            GUILayout.Label("Tanı Testleri", EditorStyles.boldLabel);
+            _replayMoves = EditorGUILayout.TextField("Replay Moves (örn: 0>5,1>6)", _replayMoves);
+
+            if (GUILayout.Button("Run Test F & G (Replay)"))
+            {
+                RunTestFG(_replayMoves);
+            }
+        }
+
+        private void RunTestFG(string movesStr)
+        {
+            Debug.Log("--- TEST F & G (REPLAY) BAŞLIYOR ---");
+            
+            var levelData = Resources.Load<LevelData>("Levels/Level_01");
+            if (levelData == null) levelData = Resources.Load<LevelData>("Levels/Level_001");
+            if (levelData == null)
+            {
+                Debug.LogWarning("Level bulunamadı!");
+                return;
+            }
+
+            List<List<int>> tubes = new List<List<int>>();
+            foreach (var t in levelData.Tubes) tubes.Add(new List<int>(t.balls));
+            BoardState board = new BoardState(levelData.TubeCapacity, tubes);
+
+            if (string.IsNullOrWhiteSpace(movesStr))
+            {
+                Debug.LogWarning("Hamle dizisi boş!");
+                return;
+            }
+
+            string[] moves = movesStr.Split(',');
+            List<BoardState> pathStates = new List<BoardState>();
+            pathStates.Add(new BoardState(board));
+
+            bool failed = false;
+            for (int i = 0; i < moves.Length; i++)
+            {
+                string m = moves[i].Trim();
+                if (string.IsNullOrEmpty(m)) continue;
+                
+                string[] parts = m.Split('>');
+                if (parts.Length != 2 || !int.TryParse(parts[0], out int s) || !int.TryParse(parts[1], out int t))
+                {
+                    Debug.LogError($"Hamle formatı hatalı: {m}");
+                    failed = true;
+                    break;
+                }
+
+                if (!board.CanMove(s, t))
+                {
+                    Debug.LogError($"Test F Hatası: {i}. hamle ({m}) geçersiz!");
+                    failed = true;
+                    break;
+                }
+
+                board.Move(s, t);
+                pathStates.Add(new BoardState(board));
+            }
+
+            Debug.Log($"Test F Sonucu: Hamleler uygulandı. Hata var mı? {failed}. IsSolved: {board.IsSolved()}");
+
+            if (!failed)
+            {
+                Debug.Log("Test G (Çözüm Yolu Kontrolü) başlıyor...");
+                SolverResultData previousResult = new SolverResultData { Result = SolverResult.Undetermined };
+
+                for (int i = 0; i < pathStates.Count; i++)
+                {
+                    var state = pathStates[i];
+                    var solveResult = Solver.Solve(state, 1000000, true);
+                    Debug.Log($"Durum {i} Solver Sonucu: {solveResult.Result} (Düğüm: {solveResult.NodesExplored})");
+
+                    if (i > 0 && solveResult.Result == SolverResult.Solvable && previousResult.Result == SolverResult.Unsolvable)
+                    {
+                        Debug.LogError($"HATA ADAYI BULUNDU! Durum {i-1} Unsolvable iken Durum {i} Solvable oldu!");
+                        Debug.LogError($"Geçiş Hamlesi: {moves[i-1]}");
+                        Debug.LogError("Durum " + (i-1) + " İçeriği:\n" + GetBoardDump(pathStates[i-1], levelData));
+                        Debug.LogError("Durum " + i + " İçeriği:\n" + GetBoardDump(state, levelData));
+                    }
+                    
+                    previousResult = solveResult;
+                }
+            }
+            
+            Debug.Log("--- TEST F & G (REPLAY) BİTTİ ---");
+        }
+
         [MenuItem("Tools/Color Sort/Solver Self-Test")]
+        public static void ShowWindow()
+        {
+            GetWindow<SolverSelfTest>("Solver Self-Test");
+        }
+
         public static void RunTests()
         {
             Debug.Log("--- SOLVER SELF-TEST BAŞLIYOR ---");
@@ -16,6 +119,18 @@ namespace ColorSortPuzzle.Editor
             TestD();
             TestE();
             Debug.Log("--- SOLVER SELF-TEST BİTTİ ---");
+        }
+
+        private static string GetBoardDump(BoardState board, LevelData levelData)
+        {
+            string path = AssetDatabase.GetAssetPath(levelData);
+            string dump = $"Level Name: {levelData.name}\nAsset Path: {path}\nCapacity: {levelData.TubeCapacity}, Tubes: {board.TubeCount}\n";
+            for (int i = 0; i < board.TubeCount; i++)
+            {
+                var tube = board.GetTube(i);
+                dump += $"Tube {i}: [" + string.Join(", ", tube) + "]\n";
+            }
+            return dump;
         }
 
         private static void TestA()
@@ -41,6 +156,8 @@ namespace ColorSortPuzzle.Editor
             foreach (var t in levelData.Tubes) tubes.Add(new List<int>(t.balls));
             BoardState board = new BoardState(levelData.TubeCapacity, tubes);
             
+            Debug.Log("Test B DUMP:\n" + GetBoardDump(board, levelData));
+
             var result = Solver.Solve(board, 1000000);
             Debug.Log($"Test B (Level_001 Normal): Sonuç = {result.Result}, Ziyaret Edilen Düğüm = {result.NodesExplored}");
         }
@@ -108,6 +225,9 @@ namespace ColorSortPuzzle.Editor
             List<List<int>> tubes = new List<List<int>>();
             foreach (var t in levelData.Tubes) tubes.Add(new List<int>(t.balls));
             
+            var board = new BoardState(levelData.TubeCapacity, tubes);
+            Debug.Log("Test D DUMP:\n" + GetBoardDump(board, levelData));
+
             var resultNormal = Solver.Solve(new BoardState(levelData.TubeCapacity, tubes), 1000000, true);
             var resultNoPruning = Solver.Solve(new BoardState(levelData.TubeCapacity, tubes), 1000000, false);
             

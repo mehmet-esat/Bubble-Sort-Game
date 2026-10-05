@@ -15,6 +15,7 @@ namespace ColorSortPuzzle
         private int _selectedTubeIndex = -1;
         private bool _isAnimating = false;
         private bool _inputLocked = false;
+        private List<string> _recordedMoves = new List<string>();
 
         public void Setup(LevelData levelData, ColorDefinition colorDef, InputController input)
         {
@@ -30,6 +31,18 @@ namespace ColorSortPuzzle
             }
 
             _boardState = new BoardState(levelData.TubeCapacity, initialTubes);
+
+#if UNITY_EDITOR
+            string dump = $"Level Name: {levelData.name}, Capacity: {levelData.TubeCapacity}, Tubes: {_boardState.TubeCount}\n";
+            for (int i = 0; i < _boardState.TubeCount; i++)
+            {
+                var tube = _boardState.GetTube(i);
+                dump += $"Tube {i}: [" + string.Join(", ", tube) + "]\n";
+            }
+            Debug.Log("LEVELCONTROLLER DUMP:\n" + dump);
+            var solveResult = Solver.Solve(new BoardState(_boardState));
+            Debug.Log($"LEVELCONTROLLER SOLVER CHECK: Result = {solveResult.Result}, Nodes = {solveResult.NodesExplored}");
+#endif
 
             CreateVisuals(levelData);
         }
@@ -150,6 +163,7 @@ namespace ColorSortPuzzle
             {
                 if (_boardState.CanMove(_selectedTubeIndex, tubeIndex))
                 {
+                    _recordedMoves.Add($"{_selectedTubeIndex}>{tubeIndex}");
                     _boardState.Move(_selectedTubeIndex, tubeIndex);
                     
                     _tubes[_selectedTubeIndex].DeselectAnimate(); 
@@ -192,6 +206,7 @@ namespace ColorSortPuzzle
                 }
                 
                 Debug.Log("LEVEL COMPLETED! Bütün renkler başarıyla ayrıştırıldı.");
+                Debug.Log("MOVES: " + string.Join(",", _recordedMoves));
                 StartCoroutine(WinSequenceCoroutine());
             }
         }

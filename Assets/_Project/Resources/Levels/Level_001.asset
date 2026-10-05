@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8c4f14a9198eae9478a07c9fc1fa2704, type: 3}
   m_Name: Level_001
   m_EditorClassIdentifier: ColorSortPuzzle.Runtime::ColorSortPuzzle.LevelData
-  tubeCapacity: 7
+  tubeCapacity: 4
   tubes:
   - balls: 00000000020000000100000003000000i
   - balls: 04000000000000000300000002000000i
