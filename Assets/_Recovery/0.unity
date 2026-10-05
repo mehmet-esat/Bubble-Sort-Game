@@ -163,6 +163,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: ColorSortPuzzle.Runtime::ColorSortPuzzle.GameManager
   inputController: {fileID: 0}
   colorDef: {fileID: 11400000, guid: 2f80e511f9b7bbe4faa924c837ed86f4, type: 2}
+  testLevel: {fileID: 11400000, guid: 18239df97c14a2048b47d0b87f1d080a, type: 2}
 --- !u!4 &276169770
 Transform:
   m_ObjectHideFlags: 0
@@ -215,7 +216,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 2
-  m_BackGroundColor: {r: 0.043137256, g: 0.12156863, b: 0.29411766, a: 1}
+  m_BackGroundColor: {r: 0, g: 0.38888872, b: 1, a: 0}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0

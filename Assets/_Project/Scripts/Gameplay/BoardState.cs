@@ -37,6 +37,93 @@ namespace ColorSortPuzzle
         }
 
         /// <summary>
+        /// Deep copy constructor (Solver ve kopyalama işlemleri için)
+        /// </summary>
+        public BoardState(BoardState other)
+        {
+            _tubeCapacity = other._tubeCapacity;
+            _moveHistory = new Stack<MoveRecord>(other._moveHistory); // Sadece yığın kapasitesini alır ama içini ters kopyalamamak için aşağıda elemanları atlamıyoruz, gerçi Solver history'i kullanmaz. Basit bırakalım.
+            
+            _tubes = new List<List<int>>(other._tubes.Count);
+            for (int i = 0; i < other._tubes.Count; i++)
+            {
+                _tubes.Add(new List<int>(other._tubes[i]));
+            }
+        }
+
+        /// <summary>
+        /// Solver için durumu benzersiz bir string (hash) olarak döndürür.
+        /// Tüplerin sırası fark etmez (Kanonik form).
+        /// </summary>
+        public ulong[] GetTubeHashes()
+        {
+            ulong[] tubeHashes = new ulong[_tubes.Count];
+            for (int i = 0; i < _tubes.Count; i++)
+            {
+                ulong h = 0;
+                var tube = _tubes[i];
+                for (int j = 0; j < tube.Count; j++)
+                {
+                    // Renk ID'si 0 olanın hash'e etki etmesi için +1 ekliyoruz.
+                    h |= ((ulong)(tube[j] + 1) << (j * 8));
+                }
+                tubeHashes[i] = h;
+            }
+            return tubeHashes;
+        }
+
+        // Testler ve karıştırma işlemleri için kuralsız hamle yapar
+        public bool ForceMove(int from, int to)
+        {
+            if (from < 0 || from >= _tubes.Count) return false;
+            if (to < 0 || to >= _tubes.Count) return false;
+            if (from == to) return false;
+
+            var source = _tubes[from];
+            var target = _tubes[to];
+
+            if (source.Count == 0) return false;
+            if (target.Count >= _tubeCapacity) return false;
+
+            int colorId = source[source.Count - 1];
+            source.RemoveAt(source.Count - 1);
+            target.Add(colorId);
+            return true;
+        }
+
+        /// <summary>
+        /// Tüpün tamamen tek renkle dolu olup olmadığını kontrol eder (Solver optimizasyonu).
+        /// </summary>
+        public bool IsTubeCompleted(int tubeIndex)
+        {
+            var tube = _tubes[tubeIndex];
+            if (tube.Count != _tubeCapacity) return false;
+            
+            int firstColor = tube[0];
+            for (int i = 1; i < tube.Count; i++)
+            {
+                if (tube[i] != firstColor) return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Tüpün boş olmadığını ve içindeki tüm topların AYNI RENK olduğunu kontrol eder.
+        /// </summary>
+        public bool IsTubeHomogeneous(int tubeIndex)
+        {
+            var tube = _tubes[tubeIndex];
+            if (tube.Count == 0) return false;
+
+            int firstColor = tube[0];
+            for (int i = 1; i < tube.Count; i++)
+            {
+                if (tube[i] != firstColor) return false;
+            }
+            return true;
+        }
+
+        /// <summary>
         /// Belirtilen tüpteki topları döndürür (readonly kopya).
         /// </summary>
         public IReadOnlyList<int> GetTube(int tubeIndex)

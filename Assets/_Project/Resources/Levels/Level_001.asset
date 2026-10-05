@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8c4f14a9198eae9478a07c9fc1fa2704, type: 3}
+  m_Name: Level_001
+  m_EditorClassIdentifier: ColorSortPuzzle.Runtime::ColorSortPuzzle.LevelData
+  tubeCapacity: 7
+  tubes:
+  - balls: 00000000020000000100000003000000i
+  - balls: 04000000000000000300000002000000i
+  - balls: 01000000040000000000000002000000i
+  - balls: 03000000010000000400000000000000i
+  - balls: 02000000030000000100000004000000i
+  - balls: 
+  - balls: 
