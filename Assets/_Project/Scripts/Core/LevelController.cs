@@ -77,7 +77,7 @@ namespace ColorSortPuzzle
                 bgGO.transform.SetParent(transform);
                 _bgRenderer = bgGO.AddComponent<SpriteRenderer>();
                 _bgRenderer.sprite = SpriteFactory.GetBackgroundSprite();
-                _bgRenderer.drawMode = SpriteDrawMode.Tiled;
+                _bgRenderer.drawMode = SpriteDrawMode.Simple;
                 _bgRenderer.sortingOrder = -10;
             }
 
@@ -108,7 +108,7 @@ namespace ColorSortPuzzle
                 ballGO.transform.SetParent(transform);
 
                 Ball ball = ballGO.AddComponent<Ball>();
-                ball.Setup(initialBalls[j], _colorDef.GetColor(initialBalls[j]));
+                ball.Setup(initialBalls[j], _colorDef.GetColor(initialBalls[j]), _colorDef.GetSprite(initialBalls[j]));
                 tube.AddBallInstant(ball);
             }
         }
@@ -171,11 +171,19 @@ namespace ColorSortPuzzle
 
             if (_bgRenderer != null)
             {
-                float bgHeight = 2f * cameraSize * 1.05f;
-                float bgWidth = 2f * cameraSize * aspect * 1.05f;
+                float camHeight = 2f * cameraSize * 1.05f;
+                float camWidth = 2f * cameraSize * aspect * 1.05f;
                 _bgRenderer.transform.position = new Vector3(0, cameraY, 0f);
-                _bgRenderer.transform.localScale = Vector3.one;
-                _bgRenderer.size = new Vector2(bgWidth, bgHeight);
+
+                Sprite bgSprite = _bgRenderer.sprite;
+                if (bgSprite != null && bgSprite.bounds.size.x > 0f && bgSprite.bounds.size.y > 0f)
+                {
+                    float scaleX = camWidth / bgSprite.bounds.size.x;
+                    float scaleY = camHeight / bgSprite.bounds.size.y;
+                    float scale = Mathf.Max(scaleX, scaleY);
+                    _bgRenderer.drawMode = SpriteDrawMode.Simple;
+                    _bgRenderer.transform.localScale = new Vector3(scale, scale, 1f);
+                }
             }
         }
 

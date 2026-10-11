@@ -15,17 +15,25 @@ MonoBehaviour:
   colors:
   - name: Red
     color: {r: 0.9764706, g: 0.145098, b: 0.2196078, a: 1}
+    ballSprite: {fileID: 21300000, guid: ca6d88d9c07d30c43ad1ec5246feca25, type: 3}
   - name: Orange
     color: {r: 1, g: 0.5411765, b: 0, a: 1}
+    ballSprite: {fileID: 21300000, guid: 51fa86a9b119983478c94736caef5fa4, type: 3}
   - name: Yellow
     color: {r: 1, g: 0.8470588, b: 0, a: 1}
+    ballSprite: {fileID: 21300000, guid: 14c7087ee49e95843acc3c1a686e0b5c, type: 3}
   - name: Green
     color: {r: 0.1294118, g: 0.8470588, b: 0.2862745, a: 1}
+    ballSprite: {fileID: 21300000, guid: 46c5ab58f9a722d4d8bf3ad1cd02e553, type: 3}
   - name: Cyan
     color: {r: 0, g: 0.8509804, b: 0.7843137, a: 1}
+    ballSprite: {fileID: 21300000, guid: 2a8e679f9e6c8534b9a400e5ff13b71c, type: 3}
   - name: Blue
     color: {r: 0.0823529, g: 0.4392157, b: 1, a: 1}
+    ballSprite: {fileID: 21300000, guid: 94253bfe25c44a148b71c583ceea9f2c, type: 3}
   - name: Purple
     color: {r: 0.4862745, g: 0.1333333, b: 0.9098039, a: 1}
+    ballSprite: {fileID: 21300000, guid: 4e8700f1739d28b4bae7db5f26cb397d, type: 3}
   - name: Pink
     color: {r: 0.9803922, g: 0.227451, b: 0.6823529, a: 1}
+    ballSprite: {fileID: 21300000, guid: a1fe072d7fa980f4399ceec4c321761e, type: 3}

@@ -2,195 +2,369 @@ using UnityEngine;
 
 namespace ColorSortPuzzle
 {
+    /// <summary>
+    /// Oyun için gerekli tüm prosedürel sprite'ları (top katmanları, tüp ve arka plan) üreten ve önbelleğe alan fabrika.
+    /// Referans görsele (ball_ref.png) birebir uygun 512x512 piksel tabanlı 3D cam küre efekti sağlar.
+    /// </summary>
     public static class SpriteFactory
     {
-        private static Sprite _ballSprite;
-        private static Sprite _ballShadowSprite;
+        public const int BallTextureSize = 512;
+        public const float BallPixelRadius = 248.0f;
+        public const float BallPPU = 512.0f;
+
+        private static Sprite _ballBaseSprite;
+        private static Sprite _ballEdgeSprite;
+        private static Sprite _ballRimSprite;
+        private static Sprite _ballGlowSprite;
         private static Sprite _ballHighlightSprite;
-        private static Sprite _ballAccentSprite;
         private static Sprite _tubeSprite;
         private static Sprite _backgroundSprite;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetCache()
+        public static void ClearCache()
         {
-            _ballSprite = null;
-            _ballShadowSprite = null;
+            _ballBaseSprite = null;
+            _ballEdgeSprite = null;
+            _ballRimSprite = null;
+            _ballGlowSprite = null;
             _ballHighlightSprite = null;
-            _ballAccentSprite = null;
             _tubeSprite = null;
             _backgroundSprite = null;
         }
 
         /// <summary>
-        /// Renk katmanının kullandığı yüksek çözünürlüklü beyaz daire sprite'ı.
+        /// GLSL / Shading tarzı Hermite smoothstep fonksiyonu:
+        /// x değerini [edge0, edge1] aralığından [0, 1] aralığına yumuşak bir S-eğrisiyle eşler.
         /// </summary>
-        public static Sprite GetBallSprite()
+        public static float GlslSmoothStep(float edge0, float edge1, float x)
         {
-            if (_ballSprite != null) return _ballSprite;
+            if (edge1 <= edge0) return x >= edge0 ? 1f : 0f;
+            float t = Mathf.Clamp01((x - edge0) / (edge1 - edge0));
+            return t * t * (3f - 2f * t);
+        }
 
-            const int radius = 115;
-            const int size = 256;
+        /// <summary>
+        /// KATMAN 1 - Taban Sprite:
+        /// 512x512 nötr gri gradyanlı daire. SpriteRenderer.color (tint) ile çarpılır.
+        /// Işık merkezi (-0.30, +0.35) noktasında en açık, kenarlarda 0.70'e, sağ-alt (+0.6, -0.6) yönünde 0.50'ye kadar iner.
+        /// </summary>
+        public static Sprite GetBallBaseSprite()
+        {
+            if (_ballBaseSprite != null) return _ballBaseSprite;
+
+            const int size = BallTextureSize;
+            const float R = BallPixelRadius;
             Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
             tex.filterMode = FilterMode.Bilinear;
 
             Color32[] pixels = new Color32[size * size];
             Color32 transparent = new Color32(0, 0, 0, 0);
+
+            Vector2 lightCenter = new Vector2(-0.30f, 0.35f);
+            Vector2 darkDir = new Vector2(0.6f, -0.6f).normalized;
+
             for (int y = 0; y < size; y++)
             {
                 for (int x = 0; x < size; x++)
                 {
-                    float cx = x - size * 0.5f + 0.5f;
-                    float cy = y - size * 0.5f + 0.5f;
-                    float dist = Mathf.Sqrt(cx * cx + cy * cy);
+                    float nx = (x + 0.5f - size * 0.5f) / R;
+                    float ny = (y + 0.5f - size * 0.5f) / R;
+                    float r = Mathf.Sqrt(nx * nx + ny * ny);
 
-                    if (dist > radius)
+                    if (r > 1.0f + 1.5f / R)
                     {
                         pixels[y * size + x] = transparent;
                         continue;
                     }
 
-                    byte alpha = 255;
-                    if (dist > radius - 1f)
+                    // Anti-aliasing (1-2 px kenar yumuşatma)
+                    float aa = Mathf.Clamp01((1.0f - r) * R + 0.5f);
+                    if (aa <= 0.001f)
                     {
-                        // Anti-aliasing yalnızca en dış 1px kenarda uygulanır.
-                        alpha = (byte)Mathf.RoundToInt(255f * (radius - dist));
+                        pixels[y * size + x] = transparent;
+                        continue;
                     }
 
-                    pixels[y * size + x] = new Color32(255, 255, 255, alpha);
+                    Vector2 pos = new Vector2(nx, ny);
+                    float distLight = Vector2.Distance(pos, lightCenter);
+
+                    // Işık merkezinde parlaklık 1.15, kenarlara doğru 0.70'e düşer
+                    float radialT = GlslSmoothStep(0f, 1.40f, distLight);
+                    float baseBrightness = Mathf.Lerp(1.15f, 0.70f, radialT);
+
+                    // Sağ-alt yönünde ek koyulaşma (0.50'ye kadar)
+                    float darkDot = Mathf.Clamp01(Vector2.Dot(pos, darkDir));
+                    float brightness = baseBrightness - darkDot * 0.20f;
+                    brightness = Mathf.Clamp(brightness, 0.50f, 1.15f);
+
+                    // Tint ile çarpılacak gri ton (1.15 değeri saf beyaz = 255'e normalize edilir)
+                    float normGray = Mathf.Clamp01(brightness / 1.15f);
+                    byte gray = (byte)Mathf.RoundToInt(normGray * 255f);
+                    byte alpha = (byte)Mathf.RoundToInt(aa * 255f);
+
+                    pixels[y * size + x] = new Color32(gray, gray, gray, alpha);
                 }
             }
 
             tex.SetPixels32(pixels);
             tex.Apply();
 
-            _ballSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 256f);
-            return _ballSprite;
+            _ballBaseSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), BallPPU);
+            return _ballBaseSprite;
         }
 
         /// <summary>
-        /// Merkezde saydam, sağ-alt yönünde yoğunlaşan siyah radial gölge katmanı.
+        /// KATMAN 2 - Kenar Çizgisi Sprite:
+        /// r = 0.95 ile 1.0 arasında yumuşak kenarlı, siyah halka (alpha %35).
         /// </summary>
-        public static Sprite GetBallShadowSprite()
+        public static Sprite GetBallEdgeSprite()
         {
-            if (_ballShadowSprite != null) return _ballShadowSprite;
+            if (_ballEdgeSprite != null) return _ballEdgeSprite;
 
-            const int size = 256;
-            const float radius = 115f;
+            const int size = BallTextureSize;
+            const float R = BallPixelRadius;
             Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
             tex.filterMode = FilterMode.Bilinear;
 
             Color32[] pixels = new Color32[size * size];
-            Vector2 shadowCenter = new Vector2(radius * 0.22f, -radius * 0.18f);
+            Color32 transparent = new Color32(0, 0, 0, 0);
 
             for (int y = 0; y < size; y++)
             {
                 for (int x = 0; x < size; x++)
                 {
-                    Vector2 point = new Vector2(x - size * 0.5f + 0.5f, y - size * 0.5f + 0.5f);
-                    float circleDistance = point.magnitude;
-                    if (circleDistance > radius)
+                    float nx = (x + 0.5f - size * 0.5f) / R;
+                    float ny = (y + 0.5f - size * 0.5f) / R;
+                    float r = Mathf.Sqrt(nx * nx + ny * ny);
+
+                    if (r < 0.93f || r > 1.0f + 1.5f / R)
+                    {
+                        pixels[y * size + x] = transparent;
                         continue;
+                    }
 
-                    float shadowDistance = Vector2.Distance(point, shadowCenter);
-                    float shadowAlpha = Mathf.SmoothStep(0f, 0.45f, Mathf.InverseLerp(radius * 0.30f, radius * 1.12f, shadowDistance));
-                    if (circleDistance > radius - 1f)
-                        shadowAlpha *= radius - circleDistance;
+                    float innerFade = GlslSmoothStep(0.93f, 0.965f, r);
+                    float outerFade = Mathf.Clamp01((1.0f - r) * R + 0.5f);
+                    float ringAlpha = innerFade * outerFade * 0.35f;
 
-                    pixels[y * size + x] = new Color32(0, 0, 0, (byte)Mathf.RoundToInt(shadowAlpha * 255f));
+                    byte a = (byte)Mathf.RoundToInt(ringAlpha * 255f);
+                    pixels[y * size + x] = new Color32(0, 0, 0, a);
                 }
             }
 
             tex.SetPixels32(pixels);
             tex.Apply();
-            _ballShadowSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 256f);
-            return _ballShadowSprite;
+
+            _ballEdgeSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), BallPPU);
+            return _ballEdgeSprite;
         }
 
         /// <summary>
-        /// Sol-üstte yumuşak kenarlı, hafif eğik oval beyaz ana parlama.
+        /// KATMAN 3 - Alt Rim Işığı Sprite:
+        /// r = 0.80 ile 0.93 arası, 235° ile 305° alt yayı. Beyaz, alpha %35, uçlara doğru yumuşak fade.
+        /// </summary>
+        public static Sprite GetBallRimSprite()
+        {
+            if (_ballRimSprite != null) return _ballRimSprite;
+
+            const int size = BallTextureSize;
+            const float R = BallPixelRadius;
+            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Bilinear;
+
+            Color32[] pixels = new Color32[size * size];
+            Color32 transparent = new Color32(0, 0, 0, 0);
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float nx = (x + 0.5f - size * 0.5f) / R;
+                    float ny = (y + 0.5f - size * 0.5f) / R;
+                    float r = Mathf.Sqrt(nx * nx + ny * ny);
+
+                    if (r < 0.78f || r > 0.95f)
+                    {
+                        pixels[y * size + x] = transparent;
+                        continue;
+                    }
+
+                    float angle = Mathf.Atan2(ny, nx) * Mathf.Rad2Deg;
+                    if (angle < 0f) angle += 360f;
+
+                    if (angle < 235f || angle > 305f)
+                    {
+                        pixels[y * size + x] = transparent;
+                        continue;
+                    }
+
+                    // Açıya göre fade (270° alt merkezde maksimum, 235° ve 305°'e doğru 0)
+                    float angleDiff = Mathf.Abs(angle - 270f);
+                    float angleFade = 1f - GlslSmoothStep(0f, 35f, angleDiff);
+
+                    // Yarıçapa göre yumuşak kenar (0.865f merkezli ince bant)
+                    float rDist = Mathf.Abs(r - 0.865f);
+                    float rFade = 1f - GlslSmoothStep(0.015f, 0.065f, rDist);
+
+                    float rimAlpha = angleFade * rFade * 0.35f;
+                    byte a = (byte)Mathf.RoundToInt(rimAlpha * 255f);
+
+                    pixels[y * size + x] = new Color32(255, 255, 255, a);
+                }
+            }
+
+            tex.SetPixels32(pixels);
+            tex.Apply();
+
+            _ballRimSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), BallPPU);
+            return _ballRimSprite;
+        }
+
+        /// <summary>
+        /// KATMAN 5 - Hafif İç Parıltı Sprite:
+        /// Merkez (-0.25, +0.30) etrafında yarıçap 0.5'lik beyaz radial gradient, alpha %12 -> 0.
+        /// </summary>
+        public static Sprite GetBallGlowSprite()
+        {
+            if (_ballGlowSprite != null) return _ballGlowSprite;
+
+            const int size = BallTextureSize;
+            const float R = BallPixelRadius;
+            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Bilinear;
+
+            Color32[] pixels = new Color32[size * size];
+            Color32 transparent = new Color32(0, 0, 0, 0);
+            Vector2 glowCenter = new Vector2(-0.25f, 0.30f);
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float nx = (x + 0.5f - size * 0.5f) / R;
+                    float ny = (y + 0.5f - size * 0.5f) / R;
+                    float r = Mathf.Sqrt(nx * nx + ny * ny);
+
+                    if (r > 1.0f + 1f / R)
+                    {
+                        pixels[y * size + x] = transparent;
+                        continue;
+                    }
+
+                    Vector2 pos = new Vector2(nx, ny);
+                    float dist = Vector2.Distance(pos, glowCenter);
+
+                    if (dist > 0.50f)
+                    {
+                        pixels[y * size + x] = transparent;
+                        continue;
+                    }
+
+                    float fade = 1f - GlslSmoothStep(0f, 0.50f, dist);
+                    float edgeClip = Mathf.Clamp01((1.0f - r) * R + 0.5f);
+                    float glowAlpha = fade * 0.12f * edgeClip;
+
+                    byte a = (byte)Mathf.RoundToInt(glowAlpha * 255f);
+                    pixels[y * size + x] = new Color32(255, 255, 255, a);
+                }
+            }
+
+            tex.SetPixels32(pixels);
+            tex.Apply();
+
+            _ballGlowSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), BallPPU);
+            return _ballGlowSprite;
+        }
+
+        /// <summary>
+        /// KATMAN 4 - Ana Parlama Sprite:
+        /// 1) Hilal (kavisli şerit): r = 0.58-0.78, açı 115°-170°, ortası ~0.14 kalın, uçları sivri, alpha %95 -> 0.
+        /// 2) Küçük yuvarlak parlama: merkez (-0.30, +0.28), yarıçap 0.07, alpha %80, yumuşak kenar.
+        /// Her ikisi de beyazdır ve renkten etkilenmez.
         /// </summary>
         public static Sprite GetBallHighlightSprite()
         {
             if (_ballHighlightSprite != null) return _ballHighlightSprite;
 
-            const int size = 256;
-            const float radius = 115f;
+            const int size = BallTextureSize;
+            const float R = BallPixelRadius;
             Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
             tex.filterMode = FilterMode.Bilinear;
-            Color32[] pixels = new Color32[size * size];
 
-            Vector2 center = new Vector2(-radius * 0.40f, radius * 0.40f);
-            const float cos = 0.819152f;
-            const float sin = -0.573576f;
-            Vector2 halfSize = new Vector2(radius * 0.28f, radius * 0.14f);
+            Color32[] pixels = new Color32[size * size];
+            Color32 transparent = new Color32(0, 0, 0, 0);
+
+            const float arcCenterAngle = 142.5f;
+            const float arcHalfSpan = 27.5f;
+            const float arcCenterRadius = 0.68f;
+            const float featherInUnits = 2.5f / R; // ~2.5 px feathering
+
+            Vector2 dotCenter = new Vector2(-0.30f, 0.28f);
+            const float dotRadius = 0.07f;
 
             for (int y = 0; y < size; y++)
             {
                 for (int x = 0; x < size; x++)
                 {
-                    float dx = x - size * 0.5f + 0.5f - center.x;
-                    float dy = y - size * 0.5f + 0.5f - center.y;
-                    float u = dx * cos - dy * sin;
-                    float v = dx * sin + dy * cos;
-                    float normalizedDistance = Mathf.Sqrt((u * u) / (halfSize.x * halfSize.x) + (v * v) / (halfSize.y * halfSize.y));
-                    float alpha = 1f - Mathf.SmoothStep(0.68f, 1f, normalizedDistance);
-                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(alpha * 200f));
+                    float nx = (x + 0.5f - size * 0.5f) / R;
+                    float ny = (y + 0.5f - size * 0.5f) / R;
+                    float r = Mathf.Sqrt(nx * nx + ny * ny);
+
+                    Vector2 pos = new Vector2(nx, ny);
+
+                    // 1) Hilal parlama
+                    float crescentAlpha = 0f;
+                    float angle = Mathf.Atan2(ny, nx) * Mathf.Rad2Deg;
+                    if (angle < 0f) angle += 360f;
+
+                    if (angle >= 115f && angle <= 170f && r >= 0.55f && r <= 0.82f)
+                    {
+                        float angleDiff = Mathf.Abs(angle - arcCenterAngle);
+                        float u = angleDiff / arcHalfSpan; // 0 (merkez) ile 1 (uçlar) arası
+                        float taper = Mathf.Clamp01(1f - u * u); // Parabolik sivrilme
+                        float halfThickness = 0.07f * taper;     // Ortada 0.14 tam kalınlık, uçta 0
+
+                        if (halfThickness > 0.001f)
+                        {
+                            float dr = Mathf.Abs(r - arcCenterRadius);
+                            float radFade = 1f - GlslSmoothStep(halfThickness - featherInUnits, halfThickness + featherInUnits, dr);
+                            float tipFade = GlslSmoothStep(0f, 0.25f, taper);
+                            crescentAlpha = radFade * tipFade * 0.95f;
+                        }
+                    }
+
+                    // 2) Küçük yuvarlak parlama
+                    float dotDist = Vector2.Distance(pos, dotCenter);
+                    float dotAlpha = 0f;
+                    if (dotDist <= dotRadius)
+                    {
+                        float dotFade = 1f - GlslSmoothStep(0.02f, dotRadius, dotDist);
+                        dotAlpha = dotFade * 0.80f;
+                    }
+
+                    float finalAlpha = Mathf.Max(crescentAlpha, dotAlpha);
+                    if (finalAlpha <= 0.001f)
+                    {
+                        pixels[y * size + x] = transparent;
+                        continue;
+                    }
+
+                    byte a = (byte)Mathf.RoundToInt(finalAlpha * 255f);
+                    pixels[y * size + x] = new Color32(255, 255, 255, a);
                 }
             }
 
             tex.SetPixels32(pixels);
             tex.Apply();
-            _ballHighlightSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 256f);
+
+            _ballHighlightSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), BallPPU);
             return _ballHighlightSprite;
         }
 
         /// <summary>
-        /// Ana parlamanın yanındaki küçük beyaz nokta ile alt kenardaki ince açık rim ışığı.
-        /// </summary>
-        public static Sprite GetBallAccentSprite()
-        {
-            if (_ballAccentSprite != null) return _ballAccentSprite;
-
-            const int size = 256;
-            const float radius = 115f;
-            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            tex.filterMode = FilterMode.Bilinear;
-            Color32[] pixels = new Color32[size * size];
-            Vector2 dotCenter = new Vector2(-radius * 0.17f, radius * 0.20f);
-            float dotRadius = radius * 0.06f;
-
-            for (int y = 0; y < size; y++)
-            {
-                for (int x = 0; x < size; x++)
-                {
-                    Vector2 point = new Vector2(x - size * 0.5f + 0.5f, y - size * 0.5f + 0.5f);
-                    float dotAlpha = 1f - Mathf.SmoothStep(dotRadius * 0.55f, dotRadius, Vector2.Distance(point, dotCenter));
-
-                    float circleDistance = point.magnitude;
-                    float angle = Mathf.Atan2(point.y, point.x) * Mathf.Rad2Deg;
-                    if (angle < 0f) angle += 360f;
-                    float rimAlpha = 0f;
-                    if (angle >= 200f && angle <= 340f && circleDistance >= radius * 0.88f && circleDistance <= radius * 0.96f)
-                    {
-                        float radial = Mathf.InverseLerp(radius * 0.88f, radius * 0.96f, circleDistance);
-                        rimAlpha = Mathf.Sin(radial * Mathf.PI) * 0.24f;
-                    }
-
-                    float alpha = Mathf.Max(dotAlpha * 0.70f, rimAlpha);
-                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(alpha * 255f));
-                }
-            }
-
-            tex.SetPixels32(pixels);
-            tex.Apply();
-            _ballAccentSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 256f);
-            return _ballAccentSprite;
-        }
-
-        /// <summary>
-        /// İnce soğuk beyaz/gri konturlu, yuvarlak alt köşeli, üstü açık cam tüp sprite'ı (120x430 px).
-        /// İçi tamamen şeffaftır; arka planı olduğu gibi gösterir.
+        /// Image 2 (ball_ref.png) referansına birebir uygun cam tüp sprite'ı (120x430 px).
+        /// Alt tarafı tam U-şekli yarım daire kavis (radius 59px), üst köşeleri hafif yuvarlak (radius 14px).
+        /// İçi tamamen şeffaftır, dış kontur rengi gümüşi cam (#969F95, alpha %90).
         /// </summary>
         public static Sprite GetTubeSprite()
         {
@@ -198,8 +372,11 @@ namespace ColorSortPuzzle
 
             int width = 120;
             int height = 430;
-            float wallThickness = 7.5f;
-            float cornerRadius = 38f; // Belirgin yuvarlatılmış U-şekli alt köşe
+            float wallThickness = 5.0f;
+            float rBottomOuter = (width - 2f) * 0.5f; // 59f (tam yarıçaplı U-şekli alt kavis)
+            float rBottomInner = rBottomOuter - wallThickness; // 54f
+            float rTopOuter = 14f; // Üst köşeler için yuvarlama yarıçapı
+            float rTopInner = Mathf.Max(1f, rTopOuter - wallThickness);
 
             Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
             tex.filterMode = FilterMode.Bilinear;
@@ -207,19 +384,21 @@ namespace ColorSortPuzzle
             Color32[] pixels = new Color32[width * height];
             Color32 transparent = new Color32(0, 0, 0, 0);
 
-            // İnce soğuk beyaz/gri cam kontur rengi
-            Color32 wallColor = new Color32(210, 220, 225, 195);
+            // Gümüşi cam kontur rengi (Referans görseldeki #969F95 tonu)
+            Color32 wallColor = new Color32(150, 159, 149, 230);
 
             float xMin = 1f;
             float xMax = width - 1f;
             float yMin = 1f;
-
-            float rOuter = cornerRadius;
-            float rInner = cornerRadius - wallThickness;
+            float yMax = height - 1f;
 
             float xMinIn = xMin + wallThickness;
             float xMaxIn = xMax - wallThickness;
             float yMinIn = yMin + wallThickness;
+            float yMaxIn = yMax - wallThickness;
+
+            float bottomCenterY = yMin + rBottomOuter;
+            float topCenterY = yMax - rTopOuter;
 
             for (int y = 0; y < height; y++)
             {
@@ -228,29 +407,39 @@ namespace ColorSortPuzzle
                     float px = x + 0.5f;
                     float py = y + 0.5f;
 
-                    // 1. Dış sınır SDF (dOuter <= 0 tüpün içi/duvarı)
+                    // 1. DIŞ SINIR SDF (dOuter <= 0 tüpün içinde)
                     float dOuter;
-                    if (py < yMin + rOuter)
+                    if (py < bottomCenterY)
                     {
-                        if (px < xMin + rOuter)
+                        // Alt U-kavisi (tam yarım daire)
+                        float centerX = (xMin + xMax) * 0.5f;
+                        float dx = px - centerX;
+                        float dy = py - bottomCenterY;
+                        dOuter = Mathf.Sqrt(dx * dx + dy * dy) - rBottomOuter;
+                    }
+                    else if (py > topCenterY)
+                    {
+                        // Üst yuvarlatılmış köşeler
+                        if (px < xMin + rTopOuter)
                         {
-                            float dx = px - (xMin + rOuter);
-                            float dy = py - (yMin + rOuter);
-                            dOuter = Mathf.Sqrt(dx * dx + dy * dy) - rOuter;
+                            float dx = px - (xMin + rTopOuter);
+                            float dy = py - topCenterY;
+                            dOuter = Mathf.Sqrt(dx * dx + dy * dy) - rTopOuter;
                         }
-                        else if (px > xMax - rOuter)
+                        else if (px > xMax - rTopOuter)
                         {
-                            float dx = px - (xMax - rOuter);
-                            float dy = py - (yMin + rOuter);
-                            dOuter = Mathf.Sqrt(dx * dx + dy * dy) - rOuter;
+                            float dx = px - (xMax - rTopOuter);
+                            float dy = py - topCenterY;
+                            dOuter = Mathf.Sqrt(dx * dx + dy * dy) - rTopOuter;
                         }
                         else
                         {
-                            dOuter = yMin - py;
+                            dOuter = py - yMax;
                         }
                     }
                     else
                     {
+                        // Düz dikey duvarlar
                         dOuter = Mathf.Max(xMin - px, px - xMax);
                     }
 
@@ -260,27 +449,35 @@ namespace ColorSortPuzzle
                         continue;
                     }
 
-                    float outerAlphaMult = Mathf.Clamp01(0.5f - dOuter);
+                    float outerAlpha = Mathf.Clamp01(0.5f - dOuter);
 
-                    // 2. İç sınır SDF (dInner < 0 tüpün iç boşluğu)
+                    // 2. İÇ SINIR SDF (dInner < 0 tüpün iç boşluğunda)
                     float dInner;
-                    if (py < yMinIn + rInner)
+                    if (py < bottomCenterY)
                     {
-                        if (px < xMinIn + rInner)
+                        float centerX = (xMin + xMax) * 0.5f;
+                        float dx = px - centerX;
+                        float dy = py - bottomCenterY;
+                        dInner = Mathf.Sqrt(dx * dx + dy * dy) - rBottomInner;
+                    }
+                    else if (py > topCenterY)
+                    {
+                        float topCenterYIn = yMaxIn - rTopInner;
+                        if (px < xMinIn + rTopInner)
                         {
-                            float dx = px - (xMinIn + rInner);
-                            float dy = py - (yMinIn + rInner);
-                            dInner = Mathf.Sqrt(dx * dx + dy * dy) - rInner;
+                            float dx = px - (xMinIn + rTopInner);
+                            float dy = py - topCenterYIn;
+                            dInner = Mathf.Sqrt(dx * dx + dy * dy) - rTopInner;
                         }
-                        else if (px > xMaxIn - rInner)
+                        else if (px > xMaxIn - rTopInner)
                         {
-                            float dx = px - (xMaxIn - rInner);
-                            float dy = py - (yMinIn + rInner);
-                            dInner = Mathf.Sqrt(dx * dx + dy * dy) - rInner;
+                            float dx = px - (xMaxIn - rTopInner);
+                            float dy = py - topCenterYIn;
+                            dInner = Mathf.Sqrt(dx * dx + dy * dy) - rTopInner;
                         }
                         else
                         {
-                            dInner = yMinIn - py;
+                            dInner = py - yMaxIn;
                         }
                     }
                     else
@@ -288,15 +485,17 @@ namespace ColorSortPuzzle
                         dInner = Mathf.Max(xMinIn - px, px - xMaxIn);
                     }
 
-                    if (dInner <= 0f)
+                    if (dInner <= -0.5f)
                     {
-                        // Tüp içi tamamen saydam; yalnızca dış çerçeve çizilir.
+                        // Tüpün içi tamamen şeffaf
                         pixels[y * width + x] = transparent;
                     }
                     else
                     {
-                        // Duvar konturu
-                        byte a = (byte)Mathf.RoundToInt(wallColor.a * outerAlphaMult);
+                        // Kontur çizgisi (iç ve dış kenar anti-aliasing)
+                        float innerAlpha = Mathf.Clamp01(dInner + 0.5f);
+                        float strokeAlpha = Mathf.Min(outerAlpha, innerAlpha);
+                        byte a = (byte)Mathf.RoundToInt(wallColor.a * strokeAlpha);
                         pixels[y * width + x] = new Color32(wallColor.r, wallColor.g, wallColor.b, a);
                     }
                 }
@@ -310,38 +509,38 @@ namespace ColorSortPuzzle
         }
 
         /// <summary>
-        /// Gri tamir/kesim matı hissi için tekrar eden ince ızgaralı arka plan sprite'ı (128x128 px).
+        /// Yıldızlı uzay / gece gökyüzü arka plan sprite'ı.
+        /// Resources/background.png varsa onu yükler, yoksa prosedürel üretir.
         /// </summary>
         public static Sprite GetBackgroundSprite()
         {
             if (_backgroundSprite != null) return _backgroundSprite;
 
+            Sprite loaded = Resources.Load<Sprite>("background");
+            if (loaded != null)
+            {
+                _backgroundSprite = loaded;
+                return _backgroundSprite;
+            }
+
+            // Fallback: 128x128 koyu uzay mavisi gradyan
             int width = 128;
             int height = 128;
             Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
             tex.filterMode = FilterMode.Bilinear;
-            tex.wrapMode = TextureWrapMode.Repeat;
-
             Color32[] pixels = new Color32[width * height];
-
-            Color32 matColor = new Color32(63, 67, 73, 255);
-            Color32 minorLineColor = new Color32(82, 87, 94, 255);
-            Color32 majorLineColor = new Color32(112, 117, 124, 255);
-
+            Color32 topCol = new Color32(13, 7, 95, 255);
+            Color32 botCol = new Color32(48, 44, 119, 255);
             for (int y = 0; y < height; y++)
             {
-                for (int x = 0; x < width; x++)
-                {
-                    bool majorLine = x % 64 == 0 || y % 64 == 0;
-                    bool minorLine = x % 16 == 0 || y % 16 == 0;
-                    pixels[y * width + x] = majorLine ? majorLineColor : (minorLine ? minorLineColor : matColor);
-                }
+                float t = (float)y / (height - 1);
+                Color32 col = Color32.Lerp(botCol, topCol, t);
+                for (int x = 0; x < width; x++) pixels[y * width + x] = col;
             }
-
             tex.SetPixels32(pixels);
             tex.Apply();
 
-            _backgroundSprite = Sprite.Create(tex, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+            _backgroundSprite = Sprite.Create(tex, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 100f);
             return _backgroundSprite;
         }
     }

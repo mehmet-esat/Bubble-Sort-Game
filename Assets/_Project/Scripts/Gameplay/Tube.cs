@@ -25,7 +25,7 @@ namespace ColorSortPuzzle
             {
                 _sr = gameObject.AddComponent<SpriteRenderer>();
                 _sr.sprite = SpriteFactory.GetTubeSprite();
-                _sr.sortingOrder = 0;
+                _sr.sortingOrder = -1; // Topların arkasında kalsın (Top Tabanı sortingOrder = 0)
             }
             
             if (_col == null)
@@ -72,13 +72,14 @@ namespace ColorSortPuzzle
 
         /// <summary>
         /// İçindeki x. topun (alttan üste) dünya koordinatlarındaki yerini hesaplar.
+        /// Toplar arası dikey boşluk %1.1 (0 ile %2 arası kuralına uygun).
         /// </summary>
         public Vector3 GetSlotPosition(int index)
         {
             // Tube pivot (0,0) alt orta nokta.
-            // Alt duvar 0.1 birim (10px). Top yarıçapı 0.5 birim (50px).
-            // Merkez Y konumu = 0.1 + 0.5 + index * 1.0 (her top 1.0 birim çapında)
-            float localY = 0.6f + index * 1.0f;
+            // Alt iç taban ve U kavisinde top tabanı ~0.06 birim yukarıda başlar.
+            // Merkez Y konumu: ilk top 0.55f, ardından her top 0.98f aralıkla yerleşir (%1 dikey boşluk).
+            float localY = 0.55f + index * 0.98f;
             return transform.TransformPoint(new Vector3(0, localY, 0));
         }
 

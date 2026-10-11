@@ -15,7 +15,7 @@ namespace ColorSortPuzzle
         
         public int ColorId { get; private set; }
 
-        public void Setup(int colorId, Color color)
+        public void Setup(int colorId, Color color, Sprite ballSprite = null)
         {
             ColorId = colorId;
             transform.localScale = Vector3.one * VisualScale;
@@ -23,15 +23,26 @@ namespace ColorSortPuzzle
             if (_sr == null)
             {
                 _sr = gameObject.AddComponent<SpriteRenderer>();
-                _sr.sprite = SpriteFactory.GetBallSprite();
-                _sr.sortingOrder = 1; // Tüpün önünde görünsün
-
-                CreateLayer("Shadow", SpriteFactory.GetBallShadowSprite(), 2);
-                CreateLayer("Highlight", SpriteFactory.GetBallHighlightSprite(), 3);
-                CreateLayer("Accent", SpriteFactory.GetBallAccentSprite(), 4);
+                _sr.sortingOrder = 0; // Katman 1: Taban (0)
             }
 
-            _sr.color = color;
+            if (ballSprite != null)
+            {
+                // Kullanıcının sağladığı gerçek 3D top dokusu kullanılır (Tüm gölge/parlamalar içinde hazır)
+                _sr.sprite = ballSprite;
+                _sr.color = Color.white;
+            }
+            else
+            {
+                // Fallback: 5 katmanlı prosedürel küre
+                _sr.sprite = SpriteFactory.GetBallBaseSprite();
+                _sr.color = color;
+
+                CreateLayer("Edge", SpriteFactory.GetBallEdgeSprite(), 1);        // Katman 2: Kenar çizgisi (1)
+                CreateLayer("Rim", SpriteFactory.GetBallRimSprite(), 2);          // Katman 3: Alt rim ışığı (2)
+                CreateLayer("Glow", SpriteFactory.GetBallGlowSprite(), 3);        // Katman 5: Hafif iç parıltı (3)
+                CreateLayer("Highlight", SpriteFactory.GetBallHighlightSprite(), 4); // Katman 4: Ana hilal parlama + küçük nokta (4)
+            }
         }
 
         private void CreateLayer(string layerName, Sprite sprite, int sortingOrder)
