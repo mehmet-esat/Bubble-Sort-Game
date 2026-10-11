@@ -8,6 +8,8 @@ namespace ColorSortPuzzle
     /// </summary>
     public class Tube : MonoBehaviour
     {
+        private const float VisualScale = 0.75f;
+
         public int TubeIndex { get; private set; }
         
         private readonly List<Ball> _balls = new List<Ball>();
@@ -17,6 +19,7 @@ namespace ColorSortPuzzle
         public void Setup(int tubeIndex)
         {
             TubeIndex = tubeIndex;
+            transform.localScale = Vector3.one * VisualScale;
             
             if (_sr == null)
             {
@@ -76,7 +79,7 @@ namespace ColorSortPuzzle
             // Alt duvar 0.1 birim (10px). Top yarıçapı 0.5 birim (50px).
             // Merkez Y konumu = 0.1 + 0.5 + index * 1.0 (her top 1.0 birim çapında)
             float localY = 0.6f + index * 1.0f;
-            return transform.position + new Vector3(0, localY, 0);
+            return transform.TransformPoint(new Vector3(0, localY, 0));
         }
 
         public void RefreshBallPositions()
@@ -98,7 +101,7 @@ namespace ColorSortPuzzle
             var top = GetTopBall();
             if (top != null)
             {
-                top.transform.position = GetSlotPosition(_balls.Count - 1) + new Vector3(0, 0.5f, 0);
+                top.transform.position = GetSlotPosition(_balls.Count - 1) + transform.TransformVector(new Vector3(0, 0.5f, 0));
             }
         }
 

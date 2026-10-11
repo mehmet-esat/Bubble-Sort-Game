@@ -13,11 +13,9 @@ MonoBehaviour:
   m_Name: Level_001
   m_EditorClassIdentifier: ColorSortPuzzle.Runtime::ColorSortPuzzle.LevelData
   tubeCapacity: 4
+  extraTubeLimit: 1
   tubes:
   - balls: 00000000020000000100000003000000i
-  - balls: 04000000000000000300000002000000i
-  - balls: 01000000040000000000000002000000i
-  - balls: 03000000010000000400000000000000i
-  - balls: 02000000030000000100000004000000i
-  - balls: 
+  - balls: 040000000000000003000000i
+  - balls: 0100000004000000i
   - balls: 

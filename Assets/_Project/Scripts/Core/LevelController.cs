@@ -11,6 +11,7 @@ namespace ColorSortPuzzle
         private readonly List<Tube> _tubes = new List<Tube>();
         private InputController _input;
         private ColorDefinition _colorDef;
+        private SpriteRenderer _bgRenderer;
 
         private int _selectedTubeIndex = -1;
         private bool _isAnimating = false;
@@ -70,6 +71,16 @@ namespace ColorSortPuzzle
 
         private void CreateVisuals(LevelData levelData)
         {
+            if (_bgRenderer == null)
+            {
+                GameObject bgGO = new GameObject("Background");
+                bgGO.transform.SetParent(transform);
+                _bgRenderer = bgGO.AddComponent<SpriteRenderer>();
+                _bgRenderer.sprite = SpriteFactory.GetBackgroundSprite();
+                _bgRenderer.drawMode = SpriteDrawMode.Tiled;
+                _bgRenderer.sortingOrder = -10;
+            }
+
             _tubes.Clear();
             for (int i = 0; i < levelData.Tubes.Length; i++)
             {
@@ -157,6 +168,15 @@ namespace ColorSortPuzzle
 
             float cameraY = (topY + topPadding) - cameraSize;
             Camera.main.transform.position = new Vector3(0, cameraY, -10f);
+
+            if (_bgRenderer != null)
+            {
+                float bgHeight = 2f * cameraSize * 1.05f;
+                float bgWidth = 2f * cameraSize * aspect * 1.05f;
+                _bgRenderer.transform.position = new Vector3(0, cameraY, 0f);
+                _bgRenderer.transform.localScale = Vector3.one;
+                _bgRenderer.size = new Vector2(bgWidth, bgHeight);
+            }
         }
 
         private void HandleTubeTapped(int tubeIndex)

@@ -8,6 +8,8 @@ namespace ColorSortPuzzle
     /// </summary>
     public class Ball : MonoBehaviour
     {
+        private const float VisualScale = 0.75f;
+
         private SpriteRenderer _sr;
         private Coroutine _moveCoroutine;
         
@@ -16,15 +18,31 @@ namespace ColorSortPuzzle
         public void Setup(int colorId, Color color)
         {
             ColorId = colorId;
+            transform.localScale = Vector3.one * VisualScale;
             
             if (_sr == null)
             {
                 _sr = gameObject.AddComponent<SpriteRenderer>();
                 _sr.sprite = SpriteFactory.GetBallSprite();
                 _sr.sortingOrder = 1; // Tüpün önünde görünsün
+
+                CreateLayer("Shadow", SpriteFactory.GetBallShadowSprite(), 2);
+                CreateLayer("Highlight", SpriteFactory.GetBallHighlightSprite(), 3);
+                CreateLayer("Accent", SpriteFactory.GetBallAccentSprite(), 4);
             }
-            
+
             _sr.color = color;
+        }
+
+        private void CreateLayer(string layerName, Sprite sprite, int sortingOrder)
+        {
+            GameObject layerGO = new GameObject(layerName);
+            layerGO.transform.SetParent(transform, false);
+
+            SpriteRenderer layerRenderer = layerGO.AddComponent<SpriteRenderer>();
+            layerRenderer.sprite = sprite;
+            layerRenderer.color = Color.white;
+            layerRenderer.sortingOrder = sortingOrder;
         }
 
         /// <summary>
