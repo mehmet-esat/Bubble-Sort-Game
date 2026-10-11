@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
 namespace ColorSortPuzzle
@@ -12,6 +14,7 @@ namespace ColorSortPuzzle
     {
         private InputAction _tapAction;
         private InputAction _positionAction;
+        private readonly List<RaycastResult> _uiRaycastResults = new List<RaycastResult>();
 
         public event Action<int> OnTubeTapped;
 
@@ -38,9 +41,22 @@ namespace ColorSortPuzzle
         {
             if (Camera.main == null) return;
 
-            // Tıklanılan ekran koordinatını al
             Vector2 screenPos = _positionAction.ReadValue<Vector2>();
-            
+            int pointerId = -1;
+
+            Touchscreen touchscreen = Touchscreen.current;
+            if (touchscreen != null && touchscreen.primaryTouch.press.isPressed)
+            {
+                pointerId = touchscreen.primaryTouch.touchId.ReadValue();
+            }
+            else if (Mouse.current != null)
+            {
+                pointerId = Mouse.current.deviceId;
+            }
+
+            if (IsPointerOverUI(pointerId, screenPos))
+                return;
+
             // Ekran koordinatını dünya koordinatına çevir
             Vector3 worldPos = Camera.main.ScreenToWorldPoint(screenPos);
             
@@ -55,6 +71,25 @@ namespace ColorSortPuzzle
                     OnTubeTapped?.Invoke(tube.TubeIndex);
                 }
             }
+        }
+
+        private bool IsPointerOverUI(int pointerId, Vector2 screenPos)
+        {
+            EventSystem eventSystem = EventSystem.current;
+            if (eventSystem == null)
+                return false;
+
+            if (eventSystem.IsPointerOverGameObject(pointerId))
+                return true;
+
+            _uiRaycastResults.Clear();
+            PointerEventData pointerData = new PointerEventData(eventSystem)
+            {
+                pointerId = pointerId,
+                position = screenPos
+            };
+            eventSystem.RaycastAll(pointerData, _uiRaycastResults);
+            return _uiRaycastResults.Count > 0;
         }
     }
 }

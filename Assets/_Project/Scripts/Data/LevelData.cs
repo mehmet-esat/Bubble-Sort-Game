@@ -13,10 +13,14 @@ namespace ColorSortPuzzle
         [Tooltip("Her tüpün kapasitesi (varsayılan 4)")]
         [SerializeField] private int tubeCapacity = 4;
 
+        [Tooltip("Bu seviyede eklenebilecek ek boş tüp sayısı.")]
+        [SerializeField] private int extraTubeLimit = 1;
+
         [Tooltip("Tüplerin başlangıç durumu. Her TubeSetup'ta balls dizisi tüpün alttan üste sıralı toplarıdır.")]
         [SerializeField] private TubeSetup[] tubes;
 
         public int TubeCapacity => tubeCapacity;
+        public int ExtraTubeLimit => extraTubeLimit;
         public TubeSetup[] Tubes => tubes;
 
         /// <summary>

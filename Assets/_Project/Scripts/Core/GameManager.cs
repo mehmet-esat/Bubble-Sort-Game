@@ -24,6 +24,11 @@ namespace ColorSortPuzzle
 
         private LevelManager _levelManager;
         private LevelController _currentLevel;
+        private UIManager _uiManager;
+
+        public bool CanRestart => _currentState == GameState.Playing && _currentLevel != null && _currentLevel.CanRestart;
+        public bool CanUndo => _currentState == GameState.Playing && _currentLevel != null && _currentLevel.CanUndo;
+        public bool CanAddTube => _currentState == GameState.Playing && _currentLevel != null && _currentLevel.CanAddTube;
 
         private void Start()
         {
@@ -41,13 +46,24 @@ namespace ColorSortPuzzle
             _levelManager.Initialize();
 
             StartLevel();
+
+            // UIManager'ı kodla oluştur
+            GameObject uiGO = new GameObject("UIManager");
+            _uiManager = uiGO.AddComponent<UIManager>();
+            _uiManager.Initialize(this);
+            UpdateLevelDisplay();
         }
 
         public void StartLevel()
         {
             if (_currentLevel != null)
             {
+                if (_currentLevel.IsAnimating)
+                    return;
+
+                _currentLevel.Cleanup();
                 Destroy(_currentLevel.gameObject);
+                _currentLevel = null;
             }
 
             var levelData = _levelManager.GetCurrentLevel();
@@ -66,6 +82,31 @@ namespace ColorSortPuzzle
             _currentLevel.OnLevelCompleted += HandleLevelCompleted;
             
             _currentLevel.Setup(levelData, colorDef, inputController);
+            UpdateLevelDisplay();
+        }
+
+        public void TryRestart()
+        {
+            if (!CanRestart)
+                return;
+
+            StartLevel();
+        }
+
+        public void TryUndo()
+        {
+            if (!CanUndo)
+                return;
+
+            _currentLevel.TryUndo();
+        }
+
+        public void TryAddTube()
+        {
+            if (!CanAddTube)
+                return;
+
+            _currentLevel.TryAddTube();
         }
 
         private void HandleLevelCompleted()
@@ -79,6 +120,14 @@ namespace ColorSortPuzzle
             
             // UI olmadığı için şimdilik otomatik olarak sonraki seviyeye geç
             StartLevel();
+        }
+
+        private void UpdateLevelDisplay()
+        {
+            if (_uiManager != null && _levelManager != null)
+            {
+                _uiManager.SetLevelNumber(_levelManager.GetCurrentDisplayLevelNumber());
+            }
         }
 
         public void SetState(GameState newState)

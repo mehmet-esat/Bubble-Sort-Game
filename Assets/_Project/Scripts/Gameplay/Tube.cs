@@ -79,6 +79,17 @@ namespace ColorSortPuzzle
             return transform.position + new Vector3(0, localY, 0);
         }
 
+        public void RefreshBallPositions()
+        {
+            for (int i = 0; i < _balls.Count; i++)
+            {
+                if (_balls[i] != null)
+                {
+                    _balls[i].transform.position = GetSlotPosition(i);
+                }
+            }
+        }
+
         /// <summary>
         /// Tüp seçildiğinde en üstteki topu hafif havaya kaldırır.
         /// </summary>

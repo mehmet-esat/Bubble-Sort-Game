@@ -80,6 +80,19 @@ namespace ColorSortPuzzle.Tests
         }
 
         [Test]
+        public void AddEmptyTube_IncreasesTubeCount_PreservesHistory()
+        {
+            var board = CreateBoard(4, new[] { 1, 1 }, new int[0]);
+            board.Move(0, 1);
+
+            board.AddEmptyTube();
+
+            Assert.AreEqual(3, board.TubeCount);
+            Assert.AreEqual(0, board.GetBallCount(2));
+            Assert.AreEqual(1, board.MoveCount);
+        }
+
+        [Test]
         public void IsSolved_AllTubesFullAndSingleColor_ReturnsTrue()
         {
             var board = CreateBoard(2, new[] { 1, 1 }, new[] { 2, 2 }, new int[0]);

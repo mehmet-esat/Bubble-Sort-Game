@@ -8,19 +8,26 @@ namespace ColorSortPuzzle
         public event System.Action OnLevelCompleted;
 
         private BoardState _boardState;
-        private Tube[] _tubes;
+        private readonly List<Tube> _tubes = new List<Tube>();
         private InputController _input;
         private ColorDefinition _colorDef;
 
         private int _selectedTubeIndex = -1;
         private bool _isAnimating = false;
         private bool _inputLocked = false;
-        private List<string> _recordedMoves = new List<string>();
+        private int _remainingExtraTubes;
+        private readonly List<MoveRecord> _recordedMoves = new List<MoveRecord>();
+
+        public bool IsAnimating => _isAnimating;
+        public bool CanRestart => !_isAnimating && !_inputLocked;
+        public bool CanUndo => !_isAnimating && !_inputLocked && _recordedMoves.Count > 0;
+        public bool CanAddTube => !_isAnimating && !_inputLocked && _remainingExtraTubes > 0;
 
         public void Setup(LevelData levelData, ColorDefinition colorDef, InputController input)
         {
             _colorDef = colorDef;
             _input = input;
+            _remainingExtraTubes = levelData.ExtraTubeLimit;
             
             _input.OnTubeTapped += HandleTubeTapped;
 
@@ -40,105 +47,115 @@ namespace ColorSortPuzzle
                 dump += $"Tube {i}: [" + string.Join(", ", tube) + "]\n";
             }
             Debug.Log("LEVELCONTROLLER DUMP:\n" + dump);
-            var solveResult = Solver.Solve(new BoardState(_boardState));
-            Debug.Log($"LEVELCONTROLLER SOLVER CHECK: Result = {solveResult.Result}, Nodes = {solveResult.NodesExplored}");
 #endif
 
             CreateVisuals(levelData);
         }
 
+        public void Cleanup()
+        {
+            _inputLocked = true;
+            if (_input != null)
+            {
+                _input.OnTubeTapped -= HandleTubeTapped;
+                _input = null;
+            }
+            OnLevelCompleted = null;
+        }
+
         private void OnDestroy()
         {
-            if (_input != null)
-                _input.OnTubeTapped -= HandleTubeTapped;
+            Cleanup();
         }
 
         private void CreateVisuals(LevelData levelData)
         {
-            int tubeCount = levelData.Tubes.Length;
-            _tubes = new Tube[tubeCount];
+            _tubes.Clear();
+            for (int i = 0; i < levelData.Tubes.Length; i++)
+            {
+                CreateTubeVisual(i, levelData.Tubes[i].balls);
+            }
+
+            RelayoutAndFitCamera();
+        }
+
+        private void CreateTubeVisual(int tubeIndex, int[] initialBalls)
+        {
+            GameObject tubeGO = new GameObject($"Tube_{tubeIndex}");
+            tubeGO.transform.SetParent(transform);
+
+            Tube tube = tubeGO.AddComponent<Tube>();
+            tube.Setup(tubeIndex);
+            _tubes.Add(tube);
+
+            if (initialBalls == null)
+                return;
+
+            for (int j = 0; j < initialBalls.Length; j++)
+            {
+                GameObject ballGO = new GameObject($"Ball_{tubeIndex}_{j}");
+                ballGO.transform.SetParent(transform);
+
+                Ball ball = ballGO.AddComponent<Ball>();
+                ball.Setup(initialBalls[j], _colorDef.GetColor(initialBalls[j]));
+                tube.AddBallInstant(ball);
+            }
+        }
+
+        public void RelayoutAndFitCamera()
+        {
+            if (Camera.main == null) return;
+
+            int tubeCount = _tubes.Count;
+            if (tubeCount == 0) return;
 
             int cols = tubeCount <= 5 ? tubeCount : (tubeCount <= 8 ? 4 : 5);
             int rows = Mathf.CeilToInt((float)tubeCount / cols);
-            
-            // Tüp boyutlarını hardcoded değerler yerine Sprite'tan oku
+
             Sprite tubeSprite = SpriteFactory.GetTubeSprite();
             float tubeWidth = tubeSprite.bounds.size.x;
             float tubeHeight = tubeSprite.bounds.size.y;
-            
+
             float xSpacing = 1.6f;
-            float ySpacing = tubeHeight + 0.8f; // Tüp yüksekliği + 0.8 boşluk
-            
-            float startY = (rows - 1) * ySpacing / 2f; 
+            float ySpacing = tubeHeight + 0.8f;
+            float startY = (rows - 1) * ySpacing / 2f;
 
             for (int i = 0; i < tubeCount; i++)
             {
                 int row = i / cols;
                 int colInRow = i % cols;
-                
-                // Son satırda kolon sayısından az tüp varsa yatayda ortala
-                int tubesInThisRow = (row == rows - 1) ? (tubeCount - row * cols) : cols;
-                if (tubesInThisRow == 0) tubesInThisRow = cols; // Tam bölünme durumu için koruma
-                
-                float rowStartX = -(tubesInThisRow - 1) * xSpacing / 2f;
-                
-                Vector3 pos = new Vector3(rowStartX + colInRow * xSpacing, startY - row * ySpacing, 0);
-                
-                GameObject tubeGO = new GameObject($"Tube_{i}");
-                tubeGO.transform.SetParent(transform);
-                tubeGO.transform.position = pos;
-                
-                Tube tube = tubeGO.AddComponent<Tube>();
-                tube.Setup(i);
-                _tubes[i] = tube;
 
-                var initialBalls = levelData.Tubes[i].balls;
-                for (int j = 0; j < initialBalls.Length; j++)
-                {
-                    GameObject ballGO = new GameObject($"Ball_{i}_{j}");
-                    ballGO.transform.SetParent(transform);
-                    
-                    Ball ball = ballGO.AddComponent<Ball>();
-                    ball.Setup(initialBalls[j], _colorDef.GetColor(initialBalls[j]));
-                    tube.AddBallInstant(ball);
-                }
+                int tubesInThisRow = (row == rows - 1) ? (tubeCount - row * cols) : cols;
+                if (tubesInThisRow == 0) tubesInThisRow = cols;
+
+                float rowStartX = -(tubesInThisRow - 1) * xSpacing / 2f;
+                Vector3 pos = new Vector3(rowStartX + colInRow * xSpacing, startY - row * ySpacing, 0f);
+
+                _tubes[i].transform.position = pos;
+                _tubes[i].RefreshBallPositions();
             }
 
-            AdjustCameraToFit(cols, rows, xSpacing, ySpacing, tubeWidth, tubeHeight, startY);
-        }
-
-        private void AdjustCameraToFit(int cols, int rows, float xSpacing, float ySpacing, float tubeWidth, float tubeHeight, float startY)
-        {
-            if (Camera.main == null) return;
-
             float aspect = (float)Screen.width / Screen.height;
-            
-            // Tüplerin gerçek (dünya koordinatındaki) sınırları
-            // Pivot alt orta olduğu için en alt Y pozisyonu kendi pozisyonudur.
-            float topY = startY + tubeHeight; 
+            float topY = startY + tubeHeight;
             float bottomY = startY - (rows - 1) * ySpacing;
-            
-            // Üst ve alt HUD payları (Alt pay daha büyük, alt UI barı için)
-            float topPadding = 2.0f;
-            float bottomPadding = 4.0f; 
+
+            float topPadding = 1.8f;
+            float bottomMargin = 0.8f;
             float sidePadding = 0.5f;
 
-            // Kameranın görmesi gereken hedef Y sınırları
-            float desiredTopEdge = topY + topPadding;
-            float desiredBottomEdge = bottomY - bottomPadding;
-            
-            // Y ekseni için gereken yarı yükseklik (Orthographic Size)
-            float requiredSizeY = (desiredTopEdge - desiredBottomEdge) / 2f;
-            
-            // X ekseni için en geniş satır cols kadar tüp içerir
+            float barFraction = UIManager.GetBottomBarScreenFraction();
+            float gameplayHeightFraction = Mathf.Max(0.5f, 1f - barFraction);
+
+            float worldHeightNeeded = (topY - bottomY) + topPadding + bottomMargin;
+            float requiredSizeY = worldHeightNeeded / (2f * gameplayHeightFraction);
+
             float totalWidth = (cols - 1) * xSpacing + tubeWidth;
             float requiredSizeX = (totalWidth / 2f + sidePadding) / aspect;
-            
-            // Kamera Y konumu (hedef sınırların tam ortası)
-            float cameraY = (desiredTopEdge + desiredBottomEdge) / 2f;
 
-            // Kamerayı en büyük gereksinime göre ayarla
-            Camera.main.orthographicSize = Mathf.Max(requiredSizeX, requiredSizeY, 5f);
+            float cameraSize = Mathf.Max(requiredSizeX, requiredSizeY, 5f);
+            Camera.main.orthographicSize = cameraSize;
+
+            float cameraY = (topY + topPadding) - cameraSize;
             Camera.main.transform.position = new Vector3(0, cameraY, -10f);
         }
 
@@ -163,20 +180,25 @@ namespace ColorSortPuzzle
             {
                 if (_boardState.CanMove(_selectedTubeIndex, tubeIndex))
                 {
-                    _recordedMoves.Add($"{_selectedTubeIndex}>{tubeIndex}");
-                    _boardState.Move(_selectedTubeIndex, tubeIndex);
-                    
-                    _tubes[_selectedTubeIndex].DeselectAnimate(); 
-                    var ball = _tubes[_selectedTubeIndex].RemoveTopBall();
-                    
-                    _isAnimating = true;
-                    _tubes[tubeIndex].AddBallAnimated(ball, () =>
+                    int topColor = _boardState.PeekTop(_selectedTubeIndex);
+                    MoveRecord moveRecord = new MoveRecord(_selectedTubeIndex, tubeIndex, topColor);
+
+                    if (_boardState.Move(_selectedTubeIndex, tubeIndex))
                     {
-                        _isAnimating = false;
-                        CheckWinCondition();
-                    });
-                    
-                    _selectedTubeIndex = -1;
+                        _recordedMoves.Add(moveRecord);
+
+                        _tubes[_selectedTubeIndex].DeselectAnimate();
+                        var ball = _tubes[_selectedTubeIndex].RemoveTopBall();
+
+                        _isAnimating = true;
+                        _tubes[tubeIndex].AddBallAnimated(ball, () =>
+                        {
+                            _isAnimating = false;
+                            CheckWinCondition();
+                        });
+
+                        _selectedTubeIndex = -1;
+                    }
                 }
                 else
                 {
@@ -195,6 +217,57 @@ namespace ColorSortPuzzle
             }
         }
 
+        public bool TryUndo()
+        {
+            if (!CanUndo)
+                return false;
+
+            DeselectCurrentTube();
+
+            MoveRecord lastMove = _recordedMoves[_recordedMoves.Count - 1];
+            if (!_boardState.Undo())
+                return false;
+
+            _recordedMoves.RemoveAt(_recordedMoves.Count - 1);
+
+            Ball ball = _tubes[lastMove.TargetIndex].RemoveTopBall();
+            if (ball != null)
+            {
+                _tubes[lastMove.SourceIndex].AddBallInstant(ball);
+            }
+
+            return true;
+        }
+
+        public bool TryAddTube()
+        {
+            if (!CanAddTube)
+                return false;
+
+            DeselectCurrentTube();
+
+            _boardState.AddEmptyTube();
+            _remainingExtraTubes--;
+
+            int newTubeIndex = _tubes.Count;
+            CreateTubeVisual(newTubeIndex, null);
+
+            RelayoutAndFitCamera();
+            return true;
+        }
+
+        private void DeselectCurrentTube()
+        {
+            if (_selectedTubeIndex != -1)
+            {
+                if (_selectedTubeIndex < _tubes.Count && _tubes[_selectedTubeIndex] != null)
+                {
+                    _tubes[_selectedTubeIndex].DeselectAnimate();
+                }
+                _selectedTubeIndex = -1;
+            }
+        }
+
         private void CheckWinCondition()
         {
             if (_boardState.IsSolved() && !_inputLocked)
@@ -206,14 +279,15 @@ namespace ColorSortPuzzle
                 }
                 
                 Debug.Log("LEVEL COMPLETED! Bütün renkler başarıyla ayrıştırıldı.");
-                Debug.Log("MOVES: " + string.Join(",", _recordedMoves));
+#if UNITY_EDITOR
+                Debug.Log("MOVES: " + _recordedMoves.Count);
+#endif
                 StartCoroutine(WinSequenceCoroutine());
             }
         }
 
         private System.Collections.IEnumerator WinSequenceCoroutine()
         {
-            // Kazanma sonrası bekleme
             yield return new WaitForSeconds(1.5f);
             OnLevelCompleted?.Invoke();
         }

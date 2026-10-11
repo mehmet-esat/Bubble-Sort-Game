@@ -18,6 +18,11 @@ namespace ColorSortPuzzle
         public int TubeCapacity => _tubeCapacity;
         public int MoveCount => _moveHistory.Count;
 
+        public void AddEmptyTube()
+        {
+            _tubes.Add(new List<int>());
+        }
+
         public BoardState(int tubeCapacity, List<List<int>> initialTubes)
         {
             if (tubeCapacity <= 0)
