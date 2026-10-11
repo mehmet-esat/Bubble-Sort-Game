@@ -17,6 +17,7 @@ namespace ColorSortPuzzle
         private readonly List<RaycastResult> _uiRaycastResults = new List<RaycastResult>();
 
         public event Action<int> OnTubeTapped;
+        public Func<bool> CanProcessInput { get; set; }
 
         private void OnEnable()
         {
@@ -40,6 +41,7 @@ namespace ColorSortPuzzle
         private void OnTapPerformed(InputAction.CallbackContext context)
         {
             if (Camera.main == null) return;
+            if (CanProcessInput != null && !CanProcessInput()) return;
 
             Vector2 screenPos = _positionAction.ReadValue<Vector2>();
             int pointerId = -1;

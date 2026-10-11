@@ -4,7 +4,7 @@ namespace ColorSortPuzzle
 {
     /// <summary>
     /// Ana oyun döngüsünü yönetir. Sahnedeki verileri okuyup LevelController'ı ayağa kaldırır.
-    /// Faz 2'de manuel ScriptableObject bağlantısıyla çalışır.
+    /// Faz 4B ile oyun Main Menu durumunda başlar.
     /// </summary>
     public class GameManager : MonoBehaviour
     {
@@ -26,6 +26,7 @@ namespace ColorSortPuzzle
         private LevelController _currentLevel;
         private UIManager _uiManager;
 
+        public bool CanGoToMenu => _currentLevel == null || !_currentLevel.IsAnimating;
         public bool CanRestart => _currentState == GameState.Playing && _currentLevel != null && _currentLevel.CanRestart;
         public bool CanUndo => _currentState == GameState.Playing && _currentLevel != null && _currentLevel.CanUndo;
         public bool CanAddTube => _currentState == GameState.Playing && _currentLevel != null && _currentLevel.CanAddTube;
@@ -34,6 +35,11 @@ namespace ColorSortPuzzle
         {
             if (inputController == null)
                 inputController = GetComponent<InputController>();
+
+            if (inputController != null)
+            {
+                inputController.CanProcessInput = () => _currentState == GameState.Playing;
+            }
 
             if (colorDef == null)
             {
@@ -45,28 +51,72 @@ namespace ColorSortPuzzle
             _levelManager = gameObject.AddComponent<LevelManager>();
             _levelManager.Initialize();
 
-            StartLevel();
-
             // UIManager'ı kodla oluştur
             GameObject uiGO = new GameObject("UIManager");
             _uiManager = uiGO.AddComponent<UIManager>();
             _uiManager.Initialize(this);
-            UpdateLevelDisplay();
+
+            // Oyun Main Menu'de başlar
+            GoToMenu();
+        }
+
+        public void OnPlayFromMenu()
+        {
+            if (_levelManager == null) return;
+            StartSpecificLevel(_levelManager.HighestUnlockedIndex);
+        }
+
+        public void ShowLevelSelect()
+        {
+            if (!CanGoToMenu)
+                return;
+
+            DestroyCurrentLevel();
+            SetState(GameState.Menu);
+
+            if (_uiManager != null && _levelManager != null)
+            {
+                _uiManager.ShowLevelSelect(_levelManager.LevelCount, _levelManager.HighestUnlockedIndex);
+            }
+        }
+
+        public void GoToMenu()
+        {
+            if (!CanGoToMenu)
+                return;
+
+            DestroyCurrentLevel();
+            SetState(GameState.Menu);
+
+            if (_uiManager != null)
+            {
+                _uiManager.ShowMainMenu();
+            }
+        }
+
+        public void StartSpecificLevel(int levelIndex)
+        {
+            if (_currentLevel != null && _currentLevel.IsAnimating)
+                return;
+
+            if (_levelManager != null)
+            {
+                _levelManager.SetPlayingLevel(levelIndex);
+            }
+
+            StartLevelInternal();
         }
 
         public void StartLevel()
         {
-            if (_currentLevel != null)
-            {
-                if (_currentLevel.IsAnimating)
-                    return;
+            StartLevelInternal();
+        }
 
-                _currentLevel.Cleanup();
-                Destroy(_currentLevel.gameObject);
-                _currentLevel = null;
-            }
+        private void StartLevelInternal()
+        {
+            DestroyCurrentLevel();
 
-            var levelData = _levelManager.GetCurrentLevel();
+            var levelData = _levelManager != null ? _levelManager.GetCurrentLevel() : null;
             if (levelData == null)
             {
                 Debug.LogError("<b>GameManager:</b> Yüklenecek seviye bulunamadı! Lütfen Tools > Color Sort > Generate Levels ile seviye üretin.");
@@ -78,11 +128,24 @@ namespace ColorSortPuzzle
             GameObject levelGO = new GameObject("LevelController");
             _currentLevel = levelGO.AddComponent<LevelController>();
             
-            // Kazanma olayına abone ol
             _currentLevel.OnLevelCompleted += HandleLevelCompleted;
-            
             _currentLevel.Setup(levelData, colorDef, inputController);
+
+            if (_uiManager != null)
+            {
+                _uiManager.ShowGameplay();
+            }
             UpdateLevelDisplay();
+        }
+
+        private void DestroyCurrentLevel()
+        {
+            if (_currentLevel != null)
+            {
+                _currentLevel.Cleanup();
+                Destroy(_currentLevel.gameObject);
+                _currentLevel = null;
+            }
         }
 
         public void TryRestart()
@@ -90,7 +153,7 @@ namespace ColorSortPuzzle
             if (!CanRestart)
                 return;
 
-            StartLevel();
+            StartLevelInternal();
         }
 
         public void TryUndo()
@@ -118,8 +181,8 @@ namespace ColorSortPuzzle
             
             _levelManager.CompleteCurrentLevel();
             
-            // UI olmadığı için şimdilik otomatik olarak sonraki seviyeye geç
-            StartLevel();
+            // Otomatik sonraki seviyeye geç (4C'de panel gelene kadar)
+            StartLevelInternal();
         }
 
         private void UpdateLevelDisplay()

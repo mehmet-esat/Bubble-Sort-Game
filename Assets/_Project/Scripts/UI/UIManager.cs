@@ -16,6 +16,10 @@ namespace ColorSortPuzzle
         private Button _undoButton;
         private Button _addTubeButton;
 
+        private GameObject _bottomBarGO;
+        private MainMenuPanel _mainMenuPanel;
+        private LevelSelectPanel _levelSelectPanel;
+
         public static float GetBottomBarScreenFraction()
         {
             float safeAreaBottomPixels = Screen.safeArea.yMin;
@@ -31,6 +35,31 @@ namespace ColorSortPuzzle
             BuildUI();
         }
 
+        public void ShowMainMenu()
+        {
+            if (_mainMenuPanel != null) _mainMenuPanel.gameObject.SetActive(true);
+            if (_levelSelectPanel != null) _levelSelectPanel.gameObject.SetActive(false);
+            if (_bottomBarGO != null) _bottomBarGO.SetActive(false);
+        }
+
+        public void ShowLevelSelect(int totalLevels, int highestUnlockedIndex)
+        {
+            if (_mainMenuPanel != null) _mainMenuPanel.gameObject.SetActive(false);
+            if (_levelSelectPanel != null)
+            {
+                _levelSelectPanel.Refresh(totalLevels, highestUnlockedIndex);
+                _levelSelectPanel.gameObject.SetActive(true);
+            }
+            if (_bottomBarGO != null) _bottomBarGO.SetActive(false);
+        }
+
+        public void ShowGameplay()
+        {
+            if (_mainMenuPanel != null) _mainMenuPanel.gameObject.SetActive(false);
+            if (_levelSelectPanel != null) _levelSelectPanel.gameObject.SetActive(false);
+            if (_bottomBarGO != null) _bottomBarGO.SetActive(true);
+        }
+
         public void SetLevelNumber(int levelNumber)
         {
             if (_levelText != null)
@@ -42,6 +71,9 @@ namespace ColorSortPuzzle
         private void Update()
         {
             if (_gameManager == null) return;
+
+            if (_homeButton != null)
+                _homeButton.interactable = _gameManager.CanGoToMenu;
 
             if (_restartButton != null)
                 _restartButton.interactable = _gameManager.CanRestart;
@@ -83,18 +115,44 @@ namespace ColorSortPuzzle
                 Debug.LogWarning("UIManager: LegacyRuntime.ttf font bulunamadi!");
             }
 
+            // 1. Main Menu Paneli
+            GameObject menuGO = new GameObject("MainMenuPanel");
+            menuGO.transform.SetParent(transform, false);
+            _mainMenuPanel = menuGO.AddComponent<MainMenuPanel>();
+            _mainMenuPanel.Setup(font);
+            _mainMenuPanel.OnPlayClicked += _gameManager.OnPlayFromMenu;
+            _mainMenuPanel.OnLevelsClicked += _gameManager.ShowLevelSelect;
+
+            // 2. Level Select Paneli
+            GameObject levelSelectGO = new GameObject("LevelSelectPanel");
+            levelSelectGO.transform.SetParent(transform, false);
+            _levelSelectPanel = levelSelectGO.AddComponent<LevelSelectPanel>();
+            _levelSelectPanel.Setup(font);
+            _levelSelectPanel.OnBackClicked += _gameManager.GoToMenu;
+            _levelSelectPanel.OnLevelSelected += _gameManager.StartSpecificLevel;
+
+            // 3. Gameplay Alt Barı
+            BuildBottomBar(font);
+
+            // Başlangıçta paneller kapalı, GameManager tarafından belirlenecek
+            _mainMenuPanel.gameObject.SetActive(false);
+            _levelSelectPanel.gameObject.SetActive(false);
+            _bottomBarGO.SetActive(false);
+        }
+
+        private void BuildBottomBar(Font font)
+        {
             float safeBottomRatio = Screen.height > 0 ? Screen.safeArea.yMin / Screen.height : 0f;
             float safeBottomCanvas = safeBottomRatio * 1920f;
             float totalBarHeight = BottomBarHeightPixels + safeBottomCanvas;
 
-            // Alt Bar Arka Planı
-            GameObject barGO = new GameObject("BottomBar", typeof(RectTransform), typeof(Image));
-            barGO.transform.SetParent(transform, false);
+            _bottomBarGO = new GameObject("BottomBar", typeof(RectTransform), typeof(Image));
+            _bottomBarGO.transform.SetParent(transform, false);
 
-            Image barImage = barGO.GetComponent<Image>();
+            Image barImage = _bottomBarGO.GetComponent<Image>();
             barImage.color = new Color(0.08f, 0.20f, 0.42f, 0.95f);
 
-            RectTransform barRect = barGO.GetComponent<RectTransform>();
+            RectTransform barRect = _bottomBarGO.GetComponent<RectTransform>();
             barRect.anchorMin = new Vector2(0f, 0f);
             barRect.anchorMax = new Vector2(1f, 0f);
             barRect.pivot = new Vector2(0.5f, 0f);
@@ -103,7 +161,7 @@ namespace ColorSortPuzzle
 
             // Buton ve İçerik Kapsayıcısı (Safe area içine oturur)
             GameObject contentGO = new GameObject("Content", typeof(RectTransform), typeof(HorizontalLayoutGroup));
-            contentGO.transform.SetParent(barGO.transform, false);
+            contentGO.transform.SetParent(_bottomBarGO.transform, false);
 
             RectTransform contentRect = contentGO.GetComponent<RectTransform>();
             contentRect.anchorMin = new Vector2(0f, 0f);
@@ -119,9 +177,11 @@ namespace ColorSortPuzzle
             layout.childForceExpandWidth = false;
             layout.childForceExpandHeight = false;
 
-            // 1. Home Butonu (4A'da pasif)
-            _homeButton = CreateButton(contentGO.transform, "HomeButton", "Home", 170f, 110f, font, null);
-            _homeButton.interactable = false;
+            // 1. Home Butonu (4B'de aktif, Menüye döner)
+            _homeButton = CreateButton(contentGO.transform, "HomeButton", "Home", 170f, 110f, font, () =>
+            {
+                if (_gameManager != null) _gameManager.GoToMenu();
+            });
 
             // 2. Restart Butonu
             _restartButton = CreateButton(contentGO.transform, "RestartButton", "Restart", 180f, 110f, font, () =>
@@ -155,6 +215,7 @@ namespace ColorSortPuzzle
 
             Image img = btnGO.GetComponent<Image>();
             img.color = new Color(0.18f, 0.46f, 0.82f, 1.0f);
+            img.raycastTarget = true;
 
             Button btn = btnGO.GetComponent<Button>();
             btn.targetGraphic = img;
@@ -187,6 +248,7 @@ namespace ColorSortPuzzle
             txt.fontSize = 32;
             txt.fontStyle = FontStyle.Bold;
             txt.color = Color.white;
+            txt.raycastTarget = false;
 
             return btn;
         }
@@ -206,6 +268,7 @@ namespace ColorSortPuzzle
             txt.fontSize = 44;
             txt.fontStyle = FontStyle.Bold;
             txt.color = Color.white;
+            txt.raycastTarget = false;
 
             return txt;
         }
