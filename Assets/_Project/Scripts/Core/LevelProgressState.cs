@@ -9,6 +9,7 @@ namespace ColorSortPuzzle
         public int HighestUnlockedIndex { get; private set; }
         public int PlayingIndex { get; private set; }
         public int TotalLevels { get; private set; }
+        public bool IsOnLastLevel => TotalLevels > 0 && PlayingIndex == TotalLevels - 1;
 
         public LevelProgressState(int savedHighestUnlockedIndex, int totalLevels)
         {

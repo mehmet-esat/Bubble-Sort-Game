@@ -179,10 +179,42 @@ namespace ColorSortPuzzle
                 
             SetState(GameState.LevelComplete);
             
-            _levelManager.CompleteCurrentLevel();
-            
-            // Otomatik sonraki seviyeye geç (4C'de panel gelene kadar)
+            int completedLevelNumber = _levelManager != null ? _levelManager.GetCurrentDisplayLevelNumber() : 1;
+            bool isLastLevel = _levelManager != null && _levelManager.IsOnLastLevel;
+
+            if (_levelManager != null)
+            {
+                _levelManager.CompleteCurrentLevel();
+            }
+
+            if (_uiManager != null)
+            {
+                _uiManager.ShowLevelComplete(completedLevelNumber, isLastLevel);
+            }
+        }
+
+        public void OnNextLevel()
+        {
+            if (_currentState != GameState.LevelComplete)
+                return;
+
             StartLevelInternal();
+        }
+
+        public void OnPlayAgain()
+        {
+            if (_currentState != GameState.LevelComplete)
+                return;
+
+            StartSpecificLevel(0);
+        }
+
+        public void OnMenuFromComplete()
+        {
+            if (_currentState != GameState.LevelComplete)
+                return;
+
+            GoToMenu();
         }
 
         private void UpdateLevelDisplay()

@@ -124,5 +124,44 @@ namespace ColorSortPuzzle.Tests
             Assert.AreEqual(0, state.PlayingIndex);
             Assert.AreEqual(1, state.GetDisplayLevelNumber());
         }
+
+        [Test]
+        public void IsOnLastLevel_SingleLevel_ReturnsTrue()
+        {
+            var state = new LevelProgressState(0, 1);
+            Assert.IsTrue(state.IsOnLastLevel);
+        }
+
+        [Test]
+        public void IsOnLastLevel_MultipleLevels_WhenOnLastLevel_ReturnsTrue()
+        {
+            var state = new LevelProgressState(4, 5);
+            Assert.AreEqual(4, state.PlayingIndex);
+            Assert.IsTrue(state.IsOnLastLevel);
+        }
+
+        [Test]
+        public void IsOnLastLevel_MultipleLevels_WhenOnEarlierLevel_ReturnsFalse()
+        {
+            var state = new LevelProgressState(4, 5);
+            state.SetPlayingIndex(2);
+            Assert.AreEqual(2, state.PlayingIndex);
+            Assert.IsFalse(state.IsOnLastLevel);
+        }
+
+        [Test]
+        public void IsOnLastLevel_MultipleLevels_WhenOnFirstLevel_ReturnsFalse()
+        {
+            var state = new LevelProgressState(0, 5);
+            Assert.AreEqual(0, state.PlayingIndex);
+            Assert.IsFalse(state.IsOnLastLevel);
+        }
+
+        [Test]
+        public void IsOnLastLevel_ZeroLevels_ReturnsFalse()
+        {
+            var state = new LevelProgressState(0, 0);
+            Assert.IsFalse(state.IsOnLastLevel);
+        }
     }
 }

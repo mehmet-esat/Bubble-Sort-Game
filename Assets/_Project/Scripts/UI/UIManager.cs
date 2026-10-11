@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -9,6 +10,10 @@ namespace ColorSortPuzzle
     {
         public const float BottomBarHeightPixels = 180f;
 
+        public Action OnNextLevel;
+        public Action OnPlayAgain;
+        public Action OnMenu;
+
         private GameManager _gameManager;
         private Text _levelText;
         private Button _homeButton;
@@ -19,6 +24,7 @@ namespace ColorSortPuzzle
         private GameObject _bottomBarGO;
         private MainMenuPanel _mainMenuPanel;
         private LevelSelectPanel _levelSelectPanel;
+        private LevelCompletePanel _levelCompletePanel;
 
         public static float GetBottomBarScreenFraction()
         {
@@ -39,6 +45,7 @@ namespace ColorSortPuzzle
         {
             if (_mainMenuPanel != null) _mainMenuPanel.gameObject.SetActive(true);
             if (_levelSelectPanel != null) _levelSelectPanel.gameObject.SetActive(false);
+            if (_levelCompletePanel != null) _levelCompletePanel.gameObject.SetActive(false);
             if (_bottomBarGO != null) _bottomBarGO.SetActive(false);
         }
 
@@ -50,6 +57,7 @@ namespace ColorSortPuzzle
                 _levelSelectPanel.Refresh(totalLevels, highestUnlockedIndex);
                 _levelSelectPanel.gameObject.SetActive(true);
             }
+            if (_levelCompletePanel != null) _levelCompletePanel.gameObject.SetActive(false);
             if (_bottomBarGO != null) _bottomBarGO.SetActive(false);
         }
 
@@ -57,7 +65,28 @@ namespace ColorSortPuzzle
         {
             if (_mainMenuPanel != null) _mainMenuPanel.gameObject.SetActive(false);
             if (_levelSelectPanel != null) _levelSelectPanel.gameObject.SetActive(false);
+            if (_levelCompletePanel != null) _levelCompletePanel.gameObject.SetActive(false);
             if (_bottomBarGO != null) _bottomBarGO.SetActive(true);
+        }
+
+        public void ShowLevelComplete(int completedLevelNumber, bool isLastLevel)
+        {
+            if (_mainMenuPanel != null) _mainMenuPanel.gameObject.SetActive(false);
+            if (_levelSelectPanel != null) _levelSelectPanel.gameObject.SetActive(false);
+            if (_bottomBarGO != null) _bottomBarGO.SetActive(false);
+
+            if (_levelCompletePanel != null)
+            {
+                _levelCompletePanel.Show(completedLevelNumber, isLastLevel);
+            }
+        }
+
+        public void HideLevelComplete()
+        {
+            if (_levelCompletePanel != null)
+            {
+                _levelCompletePanel.gameObject.SetActive(false);
+            }
         }
 
         public void SetLevelNumber(int levelNumber)
@@ -87,7 +116,7 @@ namespace ColorSortPuzzle
 
         private void EnsureEventSystem()
         {
-            if (EventSystem.current == null && Object.FindAnyObjectByType<EventSystem>() == null)
+            if (EventSystem.current == null && UnityEngine.Object.FindAnyObjectByType<EventSystem>() == null)
             {
                 GameObject esGO = new GameObject("EventSystem");
                 esGO.AddComponent<EventSystem>();
@@ -131,12 +160,34 @@ namespace ColorSortPuzzle
             _levelSelectPanel.OnBackClicked += _gameManager.GoToMenu;
             _levelSelectPanel.OnLevelSelected += _gameManager.StartSpecificLevel;
 
-            // 3. Gameplay Alt Barı
+            // 3. Level Complete Paneli
+            GameObject completeGO = new GameObject("LevelCompletePanel");
+            completeGO.transform.SetParent(transform, false);
+            _levelCompletePanel = completeGO.AddComponent<LevelCompletePanel>();
+            _levelCompletePanel.Setup(font);
+            _levelCompletePanel.OnNextLevel += () =>
+            {
+                OnNextLevel?.Invoke();
+                if (_gameManager != null) _gameManager.OnNextLevel();
+            };
+            _levelCompletePanel.OnPlayAgain += () =>
+            {
+                OnPlayAgain?.Invoke();
+                if (_gameManager != null) _gameManager.OnPlayAgain();
+            };
+            _levelCompletePanel.OnMenu += () =>
+            {
+                OnMenu?.Invoke();
+                if (_gameManager != null) _gameManager.OnMenuFromComplete();
+            };
+
+            // 4. Gameplay Alt Barı
             BuildBottomBar(font);
 
             // Başlangıçta paneller kapalı, GameManager tarafından belirlenecek
             _mainMenuPanel.gameObject.SetActive(false);
             _levelSelectPanel.gameObject.SetActive(false);
+            _levelCompletePanel.gameObject.SetActive(false);
             _bottomBarGO.SetActive(false);
         }
 

@@ -17,6 +17,7 @@ namespace ColorSortPuzzle
         public int LevelCount => _levels != null ? _levels.Length : 0;
         public int HighestUnlockedIndex => _progressState != null ? _progressState.HighestUnlockedIndex : 0;
         public int PlayingIndex => _progressState != null ? _progressState.PlayingIndex : 0;
+        public bool IsOnLastLevel => _progressState != null && _progressState.IsOnLastLevel;
 
         public void Initialize()
         {
